@@ -6,6 +6,7 @@ import {
 } from "../api/complaints.js";
 import { io } from "socket.io-client";
 import MapPanel from "../components/MapPanel.jsx";
+import LiveMapDashboard from "../components/LiveMapDashboard.jsx";
 
 const statusOptions = ["All", "Pending", "In Progress", "Resolved"];
 
@@ -18,6 +19,7 @@ function Dashboard() {
   const [updatingId, setUpdatingId] = useState("");
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [deletingId, setDeletingId] = useState("");
+  const [viewMode, setViewMode] = useState("list");
 
   const loadComplaints = async () => {
     try {
@@ -251,6 +253,15 @@ function Dashboard() {
           </div>
         </div>
 
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
+          <button type="button" onClick={() => setViewMode('list')} className={viewMode === 'list' ? 'button' : 'button button--ghost'} style={{ flex: 1, fontWeight: 'bold' }}>
+            📋 List View
+          </button>
+          <button type="button" onClick={() => setViewMode('map')} className={viewMode === 'map' ? 'button' : 'button button--ghost'} style={{ flex: 1, fontWeight: 'bold' }}>
+            🗺️ Live Geo-Map View
+          </button>
+        </div>
+
         {loading ? <p>Loading complaints...</p> : null}
         {error ? <p className="message message--error">{error}</p> : null}
 
@@ -258,7 +269,11 @@ function Dashboard() {
           <p>No complaints matched your current filters.</p>
         ) : null}
 
-        {!loading && !error && filteredComplaints.length > 0 ? (
+        {viewMode === "map" && !loading && !error && (
+           <LiveMapDashboard complaints={filteredComplaints} />
+        )}
+
+        {viewMode === "list" && !loading && !error && filteredComplaints.length > 0 ? (
           <div className="complaints-list">
             {filteredComplaints.map((complaint) => (
               <article key={complaint._id} className="complaint-item">
@@ -320,7 +335,7 @@ function Dashboard() {
 
                 {complaint.attachmentUrl ? (
                   <a
-                    href={complaint.attachmentUrl}
+                    href={complaint.attachmentUrl.startsWith("http") ? complaint.attachmentUrl : `http://localhost:5000${complaint.attachmentUrl}`}
                     target="_blank"
                     rel="noreferrer"
                     className="attachment-link"
@@ -347,22 +362,33 @@ function Dashboard() {
                   </button>
                 </div>
 
-                <div className="status-actions">
-                  {statusOptions.slice(1).map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      className="button button--ghost"
-                      disabled={
-                        updatingId === complaint._id || complaint.status === status
-                      }
-                      onClick={() => handleStatusChange(complaint._id, status)}
-                    >
-                      {updatingId === complaint._id && complaint.status !== status
-                        ? "Updating..."
-                        : status}
-                    </button>
-                  ))}
+                <div className="status-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
+                  {statusOptions.slice(1).map((status) => {
+                     const isActive = complaint.status === status;
+                     const isPending = status === "Pending";
+                     const isInProgress = status === "In Progress";
+                     const isResolved = status === "Resolved";
+                     let btnClass = "status-toggle-btn ";
+                     
+                     if (isPending) btnClass += isActive ? "status-pending-active" : "status-pending-inactive";
+                     else if (isInProgress) btnClass += isActive ? "status-inprogress-active" : "status-inprogress-inactive";
+                     else if (isResolved) btnClass += isActive ? "status-resolved-active" : "status-resolved-inactive";
+
+                     const icon = isPending ? "⏳" : isInProgress ? "🔄" : "✅";
+
+                     return (
+                       <button
+                         key={status}
+                         type="button"
+                         className={btnClass}
+                         disabled={updatingId === complaint._id || isActive}
+                         onClick={() => handleStatusChange(complaint._id, status)}
+                       >
+                         <span className="status-icon">{icon}</span>
+                         <span>{updatingId === complaint._id && complaint.status !== status ? "Updating..." : status}</span>
+                       </button>
+                     );
+                  })}
                 </div>
 
                 <div className="timeline">
@@ -390,19 +416,18 @@ function Dashboard() {
       </section>
 
       <aside className="card dashboard-sidepanel">
-        <h3>Admin Shortcuts</h3>
+        <h3>Platform Capabilities</h3>
         <ul className="dashboard-sidepanel__list">
-          <li>Filter by workflow stage</li>
-          <li>See location and department routing</li>
-          <li>Track ticket IDs and timeline updates</li>
-          <li>Live socket updates plus auto refresh backup</li>
+          <li><strong>Live Geo-Map & Clusters:</strong> Toggle a global heatmap and cluster view for deep geographic analytics.</li>
+          <li><strong>AI Deduplication (NLP):</strong> The system actively scans text similarity & distance (&lt; 100m) to flag duplicates.</li>
+          <li><strong>Citizen Evidence (Images):</strong> Automated drag & drop secure image pipeline.</li>
+          <li><strong>Dynamic Upvoting:</strong> Merge requests via "Support Existing" to amplify ticket priorities seamlessly.</li>
         </ul>
 
         <div className="sidepanel-note">
-          <strong>Advanced update added</strong>
+          <strong>Nirman Version 2.0 Active</strong>
           <p>
-            This version now behaves more like an admin complaint system, with
-            smart routing and ticket tracking built in.
+            Upgraded with AI text/geo similarity engines, Leaflet.js heatmaps, and secure local evidence storage.
           </p>
         </div>
 

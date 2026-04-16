@@ -1,23 +1,23 @@
 const CATEGORY_RULES = [
   {
-    category: "Water Supply",
+    category: "Water Issue",
     department: "Water Department",
-    keywords: ["water", "pipe", "drain", "sewage", "tap"]
+    keywords: ["water", "pipe", "drain", "sewage", "tap", "leak", "plumbing", "overflow"]
   },
   {
     category: "Electricity",
     department: "Electricity Board",
-    keywords: ["electric", "power", "current", "transformer", "street light"]
+    keywords: ["electric", "power", "current", "transformer", "street light", "wire", "blackout", "spark"]
   },
   {
-    category: "Roads",
+    category: "Road Damage",
     department: "Roads Department",
-    keywords: ["road", "pothole", "traffic", "street", "bridge"]
+    keywords: ["road", "pothole", "traffic", "street", "bridge", "asphalt", "crack", "pavement"]
   },
   {
     category: "Sanitation",
     department: "Sanitation Department",
-    keywords: ["garbage", "waste", "trash", "clean", "sanitation"]
+    keywords: ["garbage", "waste", "trash", "clean", "sanitation", "dump", "smell", "sweep", "dustbin"]
   }
 ];
 

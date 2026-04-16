@@ -14,6 +14,11 @@ export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    if (global.IS_DEMO_MODE) {
+      const token = signToken({ id: "demo-user-id", email: email.toLowerCase(), role: "citizen" });
+      return res.status(201).json({ success: true, message: "Demo Registration successful.", data: { token, user: { id: "demo-user-id", name, email: email.toLowerCase(), role: "citizen" } } });
+    }
+
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -76,6 +81,11 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (global.IS_DEMO_MODE) {
+      const token = signToken({ id: "demo-user-id", email: email.toLowerCase(), role: "citizen" });
+      return res.status(200).json({ success: true, message: "Demo Login successful.", data: { token, user: { id: "demo-user-id", name: "Demo User", email: email.toLowerCase(), role: "citizen" } } });
+    }
 
     if (!email || !password) {
       return res.status(400).json({
@@ -324,6 +334,10 @@ export const verifyAdmin = async (req, res) => {
 };
 
 export const verifyUser = async (req, res) => {
+  if (global.IS_DEMO_MODE) {
+     return res.status(200).json({ success: true, data: { user: { _id: req.user.id, name: "Demo User", email: req.user.email, role: "citizen" } } });
+  }
+
   const user = await User.findById(req.user.id).select("-password");
 
   return res.status(200).json({

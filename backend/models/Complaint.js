@@ -58,6 +58,18 @@ const complaintSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    lat: {
+      type: Number,
+      default: null
+    },
+    lng: {
+      type: Number,
+      default: null
+    },
+    supportCount: {
+      type: Number,
+      default: 0
+    },
     nearestCity: {
       type: String,
       default: "",

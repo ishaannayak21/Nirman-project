@@ -146,9 +146,19 @@ function UserDashboard() {
             {complaints.map((complaint) => (
               <article key={complaint._id} className="complaint-item">
                 <div className="complaint-item__top">
-                  <div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="ticket-badge">{complaint.ticketId}</span>
                     <h3>{complaint.category}</h3>
+                    {complaint.priority && (
+                       <span style={{ fontSize: '0.75rem', padding: '2px 6px', background: complaint.priority === 'High' || complaint.priority === 'Critical' ? '#fee2e2' : '#e0e7ff', color: complaint.priority === 'High' || complaint.priority === 'Critical' ? '#ef4444' : '#6366f1', borderRadius: '4px', fontWeight: 'bold' }}>
+                         {complaint.priority} Priority
+                       </span>
+                    )}
+                    {complaint.supportCount > 0 && (
+                       <span style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                         👍 {complaint.supportCount} Supports
+                       </span>
+                    )}
                   </div>
                   <span
                     className={`status-badge status-badge--${complaint.status
@@ -185,14 +195,11 @@ function UserDashboard() {
                 <p className="complaint-item__message">{complaint.message}</p>
 
                 {complaint.attachmentUrl ? (
-                  <a
-                    href={complaint.attachmentUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="attachment-link"
-                  >
-                    View attachment
-                  </a>
+                  <div style={{ marginTop: '10px', marginBottom: '15px' }}>
+                    <a href={complaint.attachmentUrl.startsWith("http") ? complaint.attachmentUrl : `http://localhost:5000${complaint.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                      <img src={complaint.attachmentUrl.startsWith("http") ? complaint.attachmentUrl : `http://localhost:5000${complaint.attachmentUrl}`} alt="Complaint Evidence" style={{ maxWidth: '120px', maxHeight: '120px', borderRadius: '6px', border: '1px solid #334155', objectFit: 'cover' }} />
+                    </a>
+                  </div>
                 ) : null}
 
                 <div className="status-actions">

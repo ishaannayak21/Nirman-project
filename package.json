@@ -1,0 +1,14 @@
+{
+  "name": "nirman-smart-grievance-portal",
+  "version": "2.0.0",
+  "description": "Smart, AI-powered citizen grievance platform",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm start",
+    "client": "cd frontend && npm run dev",
+    "install-all": "npm install && cd backend && npm install --no-audit && cd ../frontend && npm install --no-audit --legacy-peer-deps"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

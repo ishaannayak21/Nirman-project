@@ -7,6 +7,11 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import complaintRoutes from "./routes/complaintRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -24,10 +29,13 @@ app.set("io", io);
 
 app.use(
   cors({
-    origin: "http://localhost:5173"
+    origin: process.env.CLIENT_URL || "*"
   })
 );
 app.use(express.json());
+
+// Serve uploads folder structurally
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/", (_req, res) => {
   res.json({ message: "Grievance Platform API is running." });

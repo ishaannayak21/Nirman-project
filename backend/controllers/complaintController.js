@@ -9,8 +9,56 @@ import {
   detectCategoryDetails,
   detectPriority
 } from "../utils/complaintHelpers.js";
+import { getGeoDistance, getTextSimilarity } from "../utils/deduplication.js";
+
+const MOCK_COMPLAINTS = [
+  { _id: "demo1", ticketId: "DEMO-001", name: "Ravi K.", phone: "", email: "demo@grievance.com", department: "Public Works", message: "Road needs repair immediately.", category: "Infrastructure", status: "Pending", priority: "High", lat: 20.59, lng: 78.96, createdAt: new Date(), updatedAt: new Date() },
+  { _id: "demo2", ticketId: "DEMO-002", name: "Sunita M.", phone: "", email: "demo2@grievance.com", department: "Waste Management", message: "Garbage not collected for weeks.", category: "Sanitation", status: "In Progress", priority: "Medium", supportCount: 12, lat: 20.58, lng: 78.97, createdAt: new Date(), updatedAt: new Date() },
+  { _id: "demo3", ticketId: "DEMO-003", name: "Anil P.", phone: "9876543210", email: "anil@grievance.com", department: "Water Supply", message: "No water in sector 4.", category: "Utility", status: "Resolved", priority: "High", supportCount: 45, lat: 20.60, lng: 78.95, createdAt: new Date(), updatedAt: new Date() }
+];
+
+export const getPublicStats = async (req, res) => {
+  if (global.IS_DEMO_MODE) {
+    return res.status(200).json({ success: true, data: { total: 3, resolved: 1, pending: 2, topCategory: "Infrastructure", highPriorityAlerts: 1, duplicatesPrevented: 57 } });
+  }
+
+  try {
+    const total = await Complaint.countDocuments();
+    const resolved = await Complaint.countDocuments({ status: "Resolved" });
+    const pending = total - resolved;
+
+    const topCategoryResult = await Complaint.aggregate([
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 1 }
+    ]);
+    const topCategory = topCategoryResult.length && topCategoryResult[0]._id ? topCategoryResult[0]._id : "General";
+
+    const topSupportedResult = await Complaint.aggregate([
+       { $match: { supportCount: { $gt: 0 } } },
+       { $group: { _id: null, totalSaved: { $sum: "$supportCount" } } }
+    ]);
+    const duplicatesPrevented = topSupportedResult.length ? topSupportedResult[0].totalSaved : 0;
+
+    const highPriorityAlerts = await Complaint.countDocuments({ 
+       status: { $ne: "Resolved" }, 
+       priority: { $in: ["High", "Critical"] } 
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: { total, resolved, pending, topCategory, highPriorityAlerts, duplicatesPrevented }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
 
 export const createComplaint = async (req, res) => {
+  if (global.IS_DEMO_MODE) {
+    return res.status(201).json({ success: true, complaint: { ...req.body, _id: "demo-new", ticketId: "DEMO-NEW", status: "Pending", priority: "Medium", createdAt: new Date() } });
+  }
+
   try {
     const {
       name,
@@ -18,6 +66,8 @@ export const createComplaint = async (req, res) => {
       phone,
       category,
       location,
+      lat,
+      lng,
       nearestCity,
       ward,
       landmark,
@@ -29,10 +79,10 @@ export const createComplaint = async (req, res) => {
     const complaintName = loggedInUser?.name || name;
     const complaintEmail = loggedInUser?.email || email;
 
-    if (!complaintName || !complaintEmail || !category || !location || !message) {
+    if (!complaintName || !complaintEmail || !location || !message) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, category, location, and message are required."
+        message: "Name, email, location, and message are required."
       });
     }
 
@@ -59,6 +109,8 @@ export const createComplaint = async (req, res) => {
       phone: phone || "",
       category: detectedDetails.category,
       location,
+      lat: lat || null,
+      lng: lng || null,
       nearestCity: nearestCity || "",
       ward: ward || "",
       landmark: landmark || "",
@@ -131,7 +183,110 @@ export const createComplaint = async (req, res) => {
   }
 };
 
+export const checkDuplicateComplaint = async (req, res) => {
+  if (global.IS_DEMO_MODE) return res.status(200).json({ success: true, duplicate: false, confidence: 0 });
+
+  try {
+    const { message, lat, lng } = req.body;
+    if (!message) return res.status(400).json({ success: false, message: "Message required" });
+
+    const recentComplaints = await Complaint.find({ status: { $ne: "Resolved" } })
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    let bestMatch = null;
+    let highestScore = 0;
+
+    for (const comp of recentComplaints) {
+      let isGeoMatch = false;
+      const textSim = getTextSimilarity(message, comp.message);
+
+      if (lat && lng && comp.lat && comp.lng) {
+         const dist = getGeoDistance(lat, lng, comp.lat, comp.lng);
+         if (dist < 100) isGeoMatch = true; 
+      } else {
+         isGeoMatch = true; 
+      }
+
+      if (isGeoMatch && textSim > highestScore && textSim >= 0.70) {
+        highestScore = textSim;
+        bestMatch = comp;
+      } else if (!isGeoMatch && textSim > highestScore && textSim >= 0.85) {
+         // High strictness if no geo match
+         highestScore = textSim;
+         bestMatch = comp;
+      }
+    }
+
+    if (bestMatch && highestScore >= 0.75) {
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        confidence: highestScore,
+        existingComplaint: bestMatch,
+        message: "Similar complaint already exists nearby"
+      });
+    }
+
+    return res.status(200).json({ success: true, duplicate: false });
+  } catch (error) {
+     return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const supportComplaint = async (req, res) => {
+  if (global.IS_DEMO_MODE) return res.status(200).json({ success: true, message: "Supported in demo mode" });
+
+  try {
+     const { id } = req.params;
+     const complaint = await Complaint.findById(id);
+     if (!complaint) return res.status(404).json({ success: false, message: "Not found" });
+
+     complaint.supportCount = (complaint.supportCount || 0) + 1;
+     await complaint.save();
+
+     const io = req.app.get("io");
+     if (io) io.emit("complaint:updated", complaint.toObject());
+
+     return res.status(200).json({ success: true, data: complaint, message: "Supported" });
+  } catch (error) {
+     return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const analyzeComplaint = async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is required for analysis."
+      });
+    }
+
+    const detectedDetails = detectCategoryDetails("", message);
+    const priority = detectPriority(message);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        category: detectedDetails.category,
+        department: detectedDetails.department,
+        priority
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to analyze complaint.",
+      error: error.message
+    });
+  }
+};
+
 export const getComplaints = async (_req, res) => {
+  if (global.IS_DEMO_MODE) return res.status(200).json({ success: true, data: MOCK_COMPLAINTS });
+
   try {
     const complaints = await Complaint.find().sort({ createdAt: -1 });
 
@@ -150,6 +305,8 @@ export const getComplaints = async (_req, res) => {
 };
 
 export const getMyComplaints = async (req, res) => {
+  if (global.IS_DEMO_MODE) return res.status(200).json({ success: true, data: MOCK_COMPLAINTS });
+
   try {
     const complaints = await Complaint.find({ user: req.user.id }).sort({
       createdAt: -1

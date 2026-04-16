@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { isUserLoggedIn } from "../utils/auth.js";
+import { fetchPublicStats } from "../api/complaints.js";
 
 const featureCards = [
   {
@@ -26,6 +28,28 @@ const featureCards = [
 
 function Home() {
   const userLoggedIn = isUserLoggedIn();
+  const [stats, setStats] = useState({ 
+    total: 0, 
+    resolved: 0, 
+    pending: 0, 
+    topCategory: "General", 
+    highPriorityAlerts: 0, 
+    duplicatesPrevented: 0 
+  });
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const res = await fetchPublicStats();
+        if (res.success && res.data) {
+          setStats(res.data);
+        }
+      } catch (err) {
+        console.error("Silently failing stats load:", err);
+      }
+    };
+    loadStats();
+  }, []);
 
   return (
     <div className="home-layout">
@@ -53,21 +77,28 @@ function Home() {
 
         <div className="hero-panel__metrics">
           <div className="metric-card">
-            <strong>3-Step Flow</strong>
-            <span>Submit, assign, resolve</span>
+            <strong>{stats.total} Total Issues</strong>
+            <span>Complaints logged so far</span>
           </div>
           <div className="metric-card">
-            <strong>Smart Routing</strong>
-            <span>Category + department hints</span>
+            <strong>{stats.resolved} Resolved</strong>
+            <span>Successfully closed tickets</span>
           </div>
           <div className="metric-card">
-            <strong>Live Dashboard</strong>
-            <span>Auto-refresh every few seconds</span>
+            <strong>{stats.pending} Pending</strong>
+            <span>In active workflow pipeline</span>
           </div>
           <div className="metric-card">
-            <strong>User Complaint Portal</strong>
-            <span>Personal ticket history for every citizen</span>
+            <strong>Top: {stats.topCategory}</strong>
+            <span>Most common grievance type</span>
           </div>
+        </div>
+
+        <div style={{ marginTop: '25px', padding: '15px 20px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '15px', color: '#cbd5e1', fontSize: '0.95rem' }}>
+           <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>🧠 Regional Insights:</span>
+           <span>🔥 Top Issue This Week: <strong style={{ color: 'white' }}>{stats.topCategory}</strong></span>
+           <span>⚠️ High Priority Alerts: <strong style={{ color: '#ef4444' }}>{stats.highPriorityAlerts}</strong></span>
+           <span>🛡️ Duplicates Prevented: <strong style={{ color: '#10b981' }}>{stats.duplicatesPrevented}</strong></span>
         </div>
       </section>
 

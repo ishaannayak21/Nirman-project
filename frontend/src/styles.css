@@ -976,3 +976,78 @@ textarea {
     font-size: 2rem;
   }
 }
+
+/* Premium Status Buttons */
+.status-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.status-toggle-btn:disabled {
+  cursor: default;
+}
+
+.status-icon {
+  font-size: 1rem;
+}
+
+.status-toggle-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
+.status-pending-inactive {
+  background: rgba(249, 115, 22, 0.08); /* Dark + subtle orange tint */
+  color: rgba(253, 186, 116, 0.65); /* Lower opacity */
+  border-color: rgba(249, 115, 22, 0.15);
+}
+
+.status-pending-active {
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: white;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
+  transform: scale(1.05);
+}
+.status-pending-active:hover {
+  transform: scale(1.05) translateY(-2px);
+}
+
+.status-inprogress-inactive {
+  background: rgba(59, 130, 246, 0.08); /* Dark blue tint */
+  color: rgba(147, 197, 253, 0.65); /* Lower opacity */
+  border-color: rgba(59, 130, 246, 0.15);
+}
+
+.status-inprogress-active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+  transform: scale(1.05);
+}
+.status-inprogress-active:hover {
+  transform: scale(1.05) translateY(-2px);
+}
+
+.status-resolved-inactive {
+  background: rgba(16, 185, 129, 0.08); /* Dark green tint */
+  color: rgba(110, 231, 183, 0.65); /* Lower opacity */
+  border-color: rgba(16, 185, 129, 0.15);
+}
+
+.status-resolved-active {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  transform: scale(1.05);
+}
+.status-resolved-active:hover {
+  transform: scale(1.05) translateY(-2px);
+}
