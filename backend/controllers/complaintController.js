@@ -10,6 +10,7 @@ import {
   detectPriority
 } from "../utils/complaintHelpers.js";
 import { getGeoDistance, getTextSimilarity } from "../utils/deduplication.js";
+import { analyzeComplaint as hybridAnalyzeComplaint } from "../utils/aiEngine.js";
 
 const MOCK_COMPLAINTS = [
   { _id: "demo1", ticketId: "DEMO-001", name: "Ravi K.", phone: "", email: "demo@grievance.com", department: "Public Works", message: "Road needs repair immediately.", category: "Infrastructure", status: "Pending", priority: "High", lat: 20.59, lng: 78.96, createdAt: new Date(), updatedAt: new Date() },
@@ -86,18 +87,28 @@ export const createComplaint = async (req, res) => {
       });
     }
 
-    const detectedDetails = detectCategoryDetails(category, message);
-    const priority = detectPriority(message);
+    // Using the New Hybrid AI Engine for processing
+    const recentComplaints = await Complaint.find({ status: { $ne: "Resolved" } }).sort({ createdAt: -1 }).limit(100);
+    const aiResult = await hybridAnalyzeComplaint(message, lat, lng, recentComplaints);
+
+    if (aiResult.action === "redirect" || aiResult.category === "Invalid") {
+       return res.status(400).json({ success: false, message: aiResult.message });
+    }
+
+    const finalCategory = Array.isArray(aiResult.category) ? aiResult.primaryCategory : aiResult.category;
+    const finalPriority = aiResult.priority || detectPriority(message);
+    const detectedDetails = detectCategoryDetails(finalCategory, message);
+    
     const ticketId = createTicketId();
     const aiInsights = buildAiInsights({
-      category: detectedDetails.category,
+      category: finalCategory,
       message,
       location: ward ? `${location}, ${ward}` : location
     });
     const aiSummary = buildAiSummary({
-      category: detectedDetails.category,
+      category: finalCategory,
       location: ward ? `${location}, ${ward}` : location,
-      priority,
+      priority: finalPriority,
       message
     });
 
@@ -107,7 +118,7 @@ export const createComplaint = async (req, res) => {
       name: complaintName,
       email: complaintEmail,
       phone: phone || "",
-      category: detectedDetails.category,
+      category: finalCategory,
       location,
       lat: lat || null,
       lng: lng || null,
@@ -115,10 +126,10 @@ export const createComplaint = async (req, res) => {
       ward: ward || "",
       landmark: landmark || "",
       department: detectedDetails.department,
-      priority,
+      priority: finalPriority,
       message,
       aiSummary,
-      aiCategoryConfidence: detectedDetails.confidence || 0.55,
+      aiCategoryConfidence: aiResult.confidence === "High" ? 0.95 : (aiResult.confidence === "Medium" ? 0.75 : 0.5),
       aiTags: detectedDetails.tags || [],
       aiSentiment: aiInsights.sentiment,
       aiUrgencyDrivers: aiInsights.urgencyDrivers,
@@ -190,41 +201,19 @@ export const checkDuplicateComplaint = async (req, res) => {
     const { message, lat, lng } = req.body;
     if (!message) return res.status(400).json({ success: false, message: "Message required" });
 
-    const recentComplaints = await Complaint.find({ status: { $ne: "Resolved" } })
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const recentComplaints = await Complaint.find({ status: { $ne: "Resolved" } }).sort({ createdAt: -1 }).limit(100);
     
-    let bestMatch = null;
-    let highestScore = 0;
+    // Utilize the unified AI Engine logic for safe and fast cross-checks
+    const aiResult = await hybridAnalyzeComplaint(message, lat, lng, recentComplaints);
 
-    for (const comp of recentComplaints) {
-      let isGeoMatch = false;
-      const textSim = getTextSimilarity(message, comp.message);
-
-      if (lat && lng && comp.lat && comp.lng) {
-         const dist = getGeoDistance(lat, lng, comp.lat, comp.lng);
-         if (dist < 100) isGeoMatch = true; 
-      } else {
-         isGeoMatch = true; 
-      }
-
-      if (isGeoMatch && textSim > highestScore && textSim >= 0.70) {
-        highestScore = textSim;
-        bestMatch = comp;
-      } else if (!isGeoMatch && textSim > highestScore && textSim >= 0.85) {
-         // High strictness if no geo match
-         highestScore = textSim;
-         bestMatch = comp;
-      }
-    }
-
-    if (bestMatch && highestScore >= 0.75) {
+    if (aiResult.isDuplicate || aiResult.duplicate === "possible") {
+      const existingComplaint = recentComplaints.find(c => String(c._id) === String(aiResult.duplicateId));
       return res.status(200).json({
         success: true,
-        duplicate: true,
-        confidence: highestScore,
-        existingComplaint: bestMatch,
-        message: "Similar complaint already exists nearby"
+        duplicate: aiResult.isDuplicate ? true : "possible",
+        confidence: aiResult.similarityScore || 0.8,
+        existingComplaint: existingComplaint || { _id: aiResult.duplicateId },
+        message: aiResult.message || "Similar complaint already exists nearby"
       });
     }
 
@@ -264,15 +253,17 @@ export const analyzeComplaint = async (req, res) => {
       });
     }
 
-    const detectedDetails = detectCategoryDetails("", message);
-    const priority = detectPriority(message);
+    const recentComplaints = await Complaint.find({ status: { $ne: "Resolved" } }).sort({ createdAt: -1 }).limit(40);
+    const aiResult = await hybridAnalyzeComplaint(message, req.body.lat, req.body.lng, recentComplaints);
+    
+    const finalCategory = Array.isArray(aiResult.category) ? aiResult.primaryCategory : aiResult.category;
+    const detectedDetails = detectCategoryDetails(finalCategory || "Other", message);
 
     return res.status(200).json({
       success: true,
       data: {
-        category: detectedDetails.category,
-        department: detectedDetails.department,
-        priority
+        ...aiResult,
+        department: detectedDetails.department
       }
     });
   } catch (error) {
